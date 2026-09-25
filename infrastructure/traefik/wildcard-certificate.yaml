@@ -1,0 +1,13 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-robotoh-io
+  namespace: traefik
+spec:
+  secretName: wildcard-robotoh-io-tls
+  issuerRef:
+    name: letsencrypt-staging
+    kind: ClusterIssuer
+  dnsNames:
+    - robotoh.io
+    - "*.robotoh.io"
