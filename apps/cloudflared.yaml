@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/<your-username>/homelab-platform.git
+    repoURL: https://github.com/monospaced-dev/homelab-platform.git
     targetRevision: main
     path: infrastructure/cloudflared
   destination:
