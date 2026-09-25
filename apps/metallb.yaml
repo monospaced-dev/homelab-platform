@@ -4,7 +4,7 @@ metadata:
   name: metallb
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-wave: "0" # 0 means root-app creates this one before anything in higher waves
 spec:
   project: default
   source:
@@ -19,5 +19,5 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true
-      - ServerSideApply=true
+      - CreateNamespace=true          # argo creates "metallb-system" if it doesn't exist
+      - ServerSideApply=true          # CRD's are large, normal apply method stores a copy of each obj in an annotation, and CRDs this big exceed size limit. Server-side apply avoids that
