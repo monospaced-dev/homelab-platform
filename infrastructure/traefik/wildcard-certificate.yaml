@@ -6,7 +6,7 @@ metadata:
 spec:
   secretName: wildcard-robotoh-io-tls
   issuerRef:
-    name: letsencrypt-staging
+    name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
     - robotoh.io
