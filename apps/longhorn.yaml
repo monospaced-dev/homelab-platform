@@ -17,6 +17,8 @@ spec:
           createDefaultDiskLabeledNodes: true
           defaultDataPath: /storage
           defaultReplicaCount: 2
+        defaultBackupStore:
+          backupTarget: nfs://10.20.0.7:/volume1/longhorn-backup
         persistence:
           defaultClass: true
           defaultClassReplicaCount: 2
