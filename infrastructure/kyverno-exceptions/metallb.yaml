@@ -1,0 +1,22 @@
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: metallb-speaker-l2
+  namespace: kyverno
+spec:
+  policyRefs:
+    - {kind: ValidatingPolicy, name: disallow-host-namespaces}
+    - {kind: ValidatingPolicy, name: disallow-capabilities}
+    - {kind: ValidatingPolicy, name: disallow-capabilities-strict}
+    - {kind: ValidatingPolicy, name: require-run-as-nonroot}
+  matchConditions:
+    - name: metallb-speaker
+      expression: >-
+        object.metadata.namespace == 'metallb-system' &&
+        has(object.metadata.labels) &&
+        object.metadata.labels['app.kubernetes.io/component'] == 'speaker'
+  properties:
+    reason: "MetalLB L2 mode: the speaker answers ARP for LoadBalancer IPs (10.20.10.1-50) on the node's own network interface, which requires hostNetwork and the NET_RAW capability, and runs as root to use them"
+    compensating-controls: "seccomp RuntimeDefault applied; FRR/BGP backend disabled (not used in L2 mode), removing a second privileged component; namespace writable only by cluster admins and Argo CD"
+    scope: "DaemonSet metallb-speaker in metallb-system only"
+    reviewed: "2026-09-26"
