@@ -10,4 +10,4 @@ spec:
   podMetricsEndpoints:
     - port: metrics
       path: /metrics
-      interval: 30s
+      interval: 30s# verified under argocd netpol 2026-09-26
