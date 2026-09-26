@@ -1,0 +1,68 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: traefik
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: traefik
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+          podSelector:
+            matchLabels: {k8s-app: kube-dns}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kube-api
+  namespace: traefik
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock: {cidr: 10.20.0.3/32}
+      ports:
+        - {protocol: TCP, port: 6443}
+    - to:
+        - ipBlock: {cidr: 10.43.0.1/32}
+      ports:
+        - {protocol: TCP, port: 443}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: traefik
+  namespace: traefik
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: traefik}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - ports:
+        - {protocol: TCP, port: web}
+        - {protocol: TCP, port: websecure}
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: monitoring}
+          podSelector:
+            matchLabels: {app.kubernetes.io/name: prometheus}
+      ports:
+        - {protocol: TCP, port: metrics}
+  egress:
+    - to:
+        - namespaceSelector: {}
