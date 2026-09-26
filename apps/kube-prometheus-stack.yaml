@@ -43,6 +43,19 @@ spec:
                   resources:
                     requests:
                       storage: 20Gi
+        prometheus-node-exporter:
+          containerSecurityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            fsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
 
         alertmanager:
           config:
