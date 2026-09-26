@@ -25,6 +25,10 @@ spec:
             enabled: true
           kubernetesCRD:
             enabled: true
+        metrics:
+          prometheus:
+            serviceMonitor:
+              enabled: true
   destination:
     server: https://kubernetes.default.svc
     namespace: traefik

@@ -45,7 +45,36 @@ spec:
                       storage: 20Gi
 
         alertmanager:
+          config:
+            global:
+              resolve_timeout: 5m
+            route:
+              receiver: discord
+              group_by: ["alertname", "namespace"]
+              group_wait: 30s
+              group_interval: 5m
+              repeat_interval: 12h
+              routes:
+                - receiver: "null"
+                  matchers: ['alertname = "Watchdog"']
+                - receiver: "null"
+                  matchers: ['alertname = "InfoInhibitor"']
+            receivers:
+              - name: "null"
+              - name: discord
+                discord_configs:
+                  - webhook_url_file: /etc/alertmanager/secrets/alertmanager-discord/webhook-url
+                    send_resolved: true
+            inhibit_rules:
+              - source_matchers: ['severity = "critical"']
+                target_matchers: ['severity =~ "warning|info"']
+                equal: ["namespace", "alertname"]
+              - source_matchers: ['alertname = "InfoInhibitor"']
+                target_matchers: ['severity = "info"']
+                equal: ["namespace"]
           alertmanagerSpec:
+            secrets:
+              - alertmanager-discord
             storage:
               volumeClaimTemplate:
                 spec:

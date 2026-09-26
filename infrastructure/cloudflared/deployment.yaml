@@ -28,6 +28,9 @@ spec:
                 secretKeyRef:
                   name: cloudflared-token
                   key: token
+          ports:
+            - name: metrics
+              containerPort: 2000
           readinessProbe:
             httpGet:
               path: /ready

@@ -1,0 +1,41 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: longhorn
+  namespace: monitoring
+spec:
+  groups:
+    - name: longhorn
+      rules:
+        - alert: LonghornVolumeDegraded
+          expr: longhorn_volume_robustness == 2
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Longhorn volume {{ $labels.volume }} is degraded"
+            description: "Volume {{ $labels.volume }} ({{ $labels.pvc }}) is missing a replica. Data is still available but not redundant."
+        - alert: LonghornVolumeFaulted
+          expr: longhorn_volume_robustness == 3
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Longhorn volume {{ $labels.volume }} is faulted"
+            description: "Volume {{ $labels.volume }} ({{ $labels.pvc }}) has no healthy replica. The app using it is likely down."
+        - alert: LonghornBackupFailed
+          expr: longhorn_backup_state == 4
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Longhorn backup {{ $labels.backup }} failed"
+            description: "Backup of volume {{ $labels.volume }} is in Error state. Check the backup target (Synology NFS)."
+        - alert: LonghornNodeStorageLow
+          expr: (longhorn_node_storage_usage_bytes / longhorn_node_storage_capacity_bytes) > 0.80
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Longhorn storage on {{ $labels.node }} is over 80% full"
+            description: "Node {{ $labels.node }} is at {{ $value | humanizePercentage }} of its Longhorn disk."
