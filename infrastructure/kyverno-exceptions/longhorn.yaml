@@ -1,0 +1,26 @@
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: longhorn-storage-system
+  namespace: kyverno
+spec:
+  policyRefs:
+    - {kind: ValidatingPolicy, name: disallow-capabilities}
+    - {kind: ValidatingPolicy, name: disallow-capabilities-strict}
+    - {kind: ValidatingPolicy, name: disallow-host-path}
+    - {kind: ValidatingPolicy, name: disallow-privilege-escalation}
+    - {kind: ValidatingPolicy, name: disallow-privileged-containers}
+    - {kind: ValidatingPolicy, name: require-run-as-non-root-user}
+    - {kind: ValidatingPolicy, name: require-run-as-nonroot}
+    - {kind: ValidatingPolicy, name: restrict-seccomp-strict}
+    - {kind: ValidatingPolicy, name: restrict-volume-types}
+  matchConditions:
+    - name: longhorn-system-namespace
+      expression: "object.metadata.namespace == 'longhorn-system'"
+  properties:
+    reason: "Longhorn is block storage: it must run privileged with host paths and SYS_ADMIN to manage disks, iSCSI and CSI mounts on each node"
+    why-namespace-scope: "most Longhorn workloads (engine-image, CSI sidecars, instance-managers, recurring-job CronJobs) are generated at runtime by longhorn-manager, not by the Helm chart, with hashed names; they cannot be hardened via values or matched individually"
+    compensating-controls: "longhorn-system writable only by cluster admins and Argo CD; Longhorn ships default-deny NetworkPolicies for its components; UI not exposed publicly (port-forward only); image versions pinned via chart version in Git"
+    accepted-risk: "any pod placed in longhorn-system would inherit these exemptions"
+    remaining-policies-enforced: "host-namespaces, host-ports, proc-mount, sysctls, apparmor, selinux, host-process still apply in this namespace"
+    reviewed: "2026-09-26"
