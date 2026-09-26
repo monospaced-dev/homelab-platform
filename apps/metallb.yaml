@@ -11,6 +11,21 @@ spec:
     repoURL: https://metallb.github.io/metallb
     chart: metallb
     targetRevision: 0.16.1
+    helm:
+      valuesObject:
+        frrk8s:
+          enabled: false
+        controller:
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            fsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+        speaker:
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
   destination:
     server: https://kubernetes.default.svc
     namespace: metallb-system
