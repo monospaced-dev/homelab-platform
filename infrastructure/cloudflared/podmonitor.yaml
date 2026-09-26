@@ -11,3 +11,4 @@ spec:
     - port: metrics
       path: /metrics
       interval: 30s
+# verified under argocd netpol (2) 2026-09-26
