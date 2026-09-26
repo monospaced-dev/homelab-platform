@@ -33,6 +33,12 @@ spec:
     automated:
       prune: true
       selfHeal: true
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: privileged
+        pod-security.kubernetes.io/enforce-version: latest
+        pod-security.kubernetes.io/warn: restricted
+        pod-security.kubernetes.io/audit: restricted
     syncOptions:
-      - CreateNamespace=true          # argo creates "metallb-system" if it doesn't exist
-      - ServerSideApply=true          # CRD's are large, normal apply method stores a copy of each obj in an annotation, and CRDs this big exceed size limit. Server-side apply avoids that
+      - CreateNamespace=true
+      - ServerSideApply=true
