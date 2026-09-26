@@ -1,0 +1,22 @@
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: node-exporter-host-access
+  namespace: kyverno
+spec:
+  policyRefs:
+    - {kind: ValidatingPolicy, name: disallow-host-namespaces}
+    - {kind: ValidatingPolicy, name: disallow-host-path}
+    - {kind: ValidatingPolicy, name: disallow-host-ports}
+    - {kind: ValidatingPolicy, name: restrict-volume-types}
+  matchConditions:
+    - name: node-exporter-in-monitoring
+      expression: >-
+        object.metadata.namespace == 'monitoring' &&
+        has(object.metadata.labels) &&
+        object.metadata.labels['app.kubernetes.io/name'] == 'prometheus-node-exporter'
+  properties:
+    reason: "node-exporter reads node-level metrics: needs hostNetwork/hostPID and read-only hostPath mounts of /proc, /sys and /"
+    compensating-controls: "mounts are read-only; runs as nobody (65534); privilege escalation disabled; seccomp RuntimeDefault; all capabilities dropped"
+    scope: "DaemonSet kube-prometheus-stack-prometheus-node-exporter in monitoring only"
+    reviewed: "2026-09-26"

@@ -1,0 +1,41 @@
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: k3s-coredns
+  namespace: kyverno
+spec:
+  policyRefs:
+    - {kind: ValidatingPolicy, name: disallow-capabilities-strict}
+    - {kind: ValidatingPolicy, name: require-run-as-nonroot}
+    - {kind: ValidatingPolicy, name: restrict-seccomp-strict}
+  matchConditions:
+    - name: coredns-in-kube-system
+      expression: >-
+        object.metadata.namespace == 'kube-system' &&
+        has(object.metadata.labels) &&
+        object.metadata.labels['k8s-app'] == 'kube-dns'
+  properties:
+    reason: "k3s-managed CoreDNS; manifest is re-applied by k3s on every restart, so it cannot be changed through GitOps"
+    compensating-controls: "kube-system writable only by cluster admins; version tracked with k3s upgrades"
+    scope: "Deployment coredns in kube-system only"
+    reviewed: "2026-09-26"
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: k3s-metrics-server
+  namespace: kyverno
+spec:
+  policyRefs:
+    - {kind: ValidatingPolicy, name: restrict-seccomp-strict}
+  matchConditions:
+    - name: metrics-server-in-kube-system
+      expression: >-
+        object.metadata.namespace == 'kube-system' &&
+        has(object.metadata.labels) &&
+        object.metadata.labels['k8s-app'] == 'metrics-server'
+  properties:
+    reason: "k3s-managed metrics-server; missing only a seccomp profile; manifest re-applied by k3s on restart"
+    compensating-controls: "kube-system writable only by cluster admins; version tracked with k3s upgrades"
+    scope: "Deployment metrics-server in kube-system only"
+    reviewed: "2026-09-26"
