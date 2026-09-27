@@ -29,6 +29,12 @@ spec:
         operations: [CREATE, UPDATE]
   matchImageReferences:
     - glob: "ghcr.io/monospaced-dev/*"
+  # Our images must already be pinned by digest (checked below), so Kyverno
+  # never has to resolve a tag. Tag resolution was also broken for us: the
+  # images are arm64-only indexes, and Kyverno's resolver looks for a
+  # linux/amd64 child ("no child with platform linux/amd64 in index").
+  validationConfigurations:
+    mutateDigest: false
   attestors:
     - name: github
       cosign:
@@ -39,6 +45,12 @@ spec:
         ctlog:
           url: https://rekor.sigstore.dev
   validations:
+    # Tags are mutable; a digest names exactly one image. Deploy by digest.
+    - expression: >-
+        images.containers
+          .filter(image, image.startsWith('ghcr.io/monospaced-dev/'))
+          .all(image, image.contains('@sha256:'))
+      message: "Images from ghcr.io/monospaced-dev/ must be pinned by digest (image@sha256:...), not a tag"
     # Only our own images are checked; third-party images in the same
     # namespace (e.g. postgres) pass through. An empty list is vacuously true.
     - expression: >-
