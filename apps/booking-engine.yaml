@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: booking-engine
+  namespace: argocd
+  annotations:
+    # After the whole platform (waves 0-12): storage, sealed-secrets, Kyverno.
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/monospaced-dev/homelab-platform.git
+    targetRevision: main
+    path: workloads/booking-engine
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: booking-engine
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: restricted
+        pod-security.kubernetes.io/enforce-version: latest
+        pod-security.kubernetes.io/warn: restricted
+        pod-security.kubernetes.io/audit: restricted
+        # Opt in to Kyverno signature + digest enforcement (phase 3).
+        security.robotoh.io/verify-images: enforce
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

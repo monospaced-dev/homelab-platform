@@ -1,0 +1,143 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: booking-engine
+  namespace: booking-engine
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: booking-engine
+      app.kubernetes.io/component: app
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: booking-engine
+        app.kubernetes.io/component: app
+    spec:
+      # Laravel never talks to the Kubernetes API, so it gets no token.
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # storage/ is an emptyDir (the root filesystem is read-only), so the
+        # folders Laravel expects inside it are created fresh on each start.
+        - name: prepare-storage
+          image: ghcr.io/monospaced-dev/booking-engine-fpm@sha256:301cb98d9ce2828ad9465c2ac4ca89a82bf9408cd1b28b6b9200fca65d24b8a7
+          command:
+            - mkdir
+            - -p
+            - /var/www/html/storage/framework/cache
+            - /var/www/html/storage/framework/sessions
+            - /var/www/html/storage/framework/views
+            - /var/www/html/storage/logs
+            - /var/www/html/storage/app/private
+          securityContext:
+            runAsUser: 33
+            runAsGroup: 33
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: storage
+              mountPath: /var/www/html/storage
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
+      containers:
+        - name: fpm
+          image: ghcr.io/monospaced-dev/booking-engine-fpm@sha256:301cb98d9ce2828ad9465c2ac4ca89a82bf9408cd1b28b6b9200fca65d24b8a7
+          envFrom:
+            - configMapRef:
+                name: booking-engine-env
+            - secretRef:
+                name: booking-engine-secrets
+          ports:
+            - name: fpm
+              containerPort: 9000
+          securityContext:
+            runAsUser: 33
+            runAsGroup: 33
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: storage
+              mountPath: /var/www/html/storage
+            - name: fpm-tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+        - name: nginx
+          image: ghcr.io/monospaced-dev/booking-engine-nginx@sha256:1dff6f5ed00b1a558dec0e2a5a384839e5e1855c465a29b43c8a1c7db176911e
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            runAsUser: 101
+            runAsGroup: 101
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            # nginx-unprivileged keeps its pid and temp files in /tmp.
+            - name: nginx-tmp
+              mountPath: /tmp
+          # Ready = can serve real requests, which needs the database.
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          # Alive = nginx + php-fpm answer. Deliberately no DB check: a
+          # Postgres restart shouldn't make Kubernetes kill a healthy app.
+          livenessProbe:
+            httpGet:
+              path: /api/ping
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+      volumes:
+        - name: storage
+          emptyDir: {}
+        - name: fpm-tmp
+          emptyDir: {}
+        - name: nginx-tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: booking-engine
+  namespace: booking-engine
+spec:
+  selector:
+    app.kubernetes.io/name: booking-engine
+    app.kubernetes.io/component: app
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

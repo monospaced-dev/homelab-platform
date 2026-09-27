@@ -1,0 +1,26 @@
+# Non-secret settings, shared by the app and the migrate Job via envFrom.
+# Secrets (APP_KEY, DB_PASSWORD) live in the sealed secret.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: booking-engine-env
+  namespace: booking-engine
+data:
+  APP_NAME: booking-engine
+  APP_ENV: production
+  APP_DEBUG: "false"
+  APP_URL: http://booking-engine.booking-engine.svc.cluster.local:8080
+  # Logs to the container's stderr, so kubectl logs / Loki see them and
+  # nothing needs to be written under storage/logs.
+  LOG_CHANNEL: stderr
+  LOG_LEVEL: info
+  DB_CONNECTION: pgsql
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_DATABASE: booking_engine
+  DB_USERNAME: booking_engine
+  # Pure server-to-server API: no sessions, no queued jobs.
+  SESSION_DRIVER: array
+  QUEUE_CONNECTION: sync
+  CACHE_STORE: database
+  TELESCOPE_ENABLED: "false"

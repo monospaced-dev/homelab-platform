@@ -1,0 +1,67 @@
+# Runs `php artisan migrate --force` on every sync, before the app rolls out.
+# A Sync-phase hook at wave 2: Argo waits for wave 1 (Postgres) to be healthy
+# first. (The old cluster used PreSync, which runs before anything else, so on
+# a fresh namespace it failed: no Postgres and no secret yet.)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: booking-engine-migrate
+  namespace: booking-engine
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: booking-engine
+        app.kubernetes.io/component: migrate
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 33
+        runAsGroup: 33
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          # Same fpm image as the app, by digest (Kyverno requires it).
+          image: ghcr.io/monospaced-dev/booking-engine-fpm@sha256:301cb98d9ce2828ad9465c2ac4ca89a82bf9408cd1b28b6b9200fca65d24b8a7
+          command:
+            - sh
+            - -c
+            - >-
+              mkdir -p storage/framework/cache storage/framework/sessions
+              storage/framework/views storage/logs storage/app/private
+              && exec php artisan migrate --force
+          envFrom:
+            - configMapRef:
+                name: booking-engine-env
+            - secretRef:
+                name: booking-engine-secrets
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: storage
+              mountPath: /var/www/html/storage
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        - name: storage
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
