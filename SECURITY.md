@@ -41,6 +41,7 @@ Each layer assumes the one above it can fail.
 | 18 | Continuous monitoring | Prometheus + Alertmanager → Discord; Longhorn alert rules; Kyverno PolicyReports | [`infrastructure/monitoring/`](infrastructure/monitoring) | — | CA-7, SI-4 | Met |
 | 19 | Secrets encrypted at rest | k3s `secrets-encryption` (AES-CBC); key in `server/cred/encryption-config.json` on the node, backed up off-cluster, never in Git | `sudo k3s secrets-encrypt status` → Enabled, `reencrypt_finished`; raw `state.db` rows start with `k8s:enc:aescbc:v1:` | 1.2.27, 1.2.28 | SC-28, SC-28(1), SC-12 | Met (2026-09-27) |
 | 20 | API audit log | Audit policy: every change logged with its request body, credential objects metadata-only, controller reads and health checks dropped; 30 days, 10 × 100 MB | [`bootstrap/k3s-server/`](bootstrap/k3s-server) | 1.2.16–1.2.19 | AU-2, AU-3, AU-9, AU-11, AU-12 | Met (2026-09-27) |
+| 21 | Images stay patched | booking-engine rebuilds monthly with no layer cache (fresh base images, fresh Trivy DB); a monthly workflow opens one PR bumping every pinned digest; merging deploys through Argo + Kyverno | [`.github/workflows/image-digests.yml`](.github/workflows/image-digests.yml) | — | SI-2, RA-5, CM-3 | Met (2026-09-27) |
 
 ## Documented exceptions
 
@@ -63,7 +64,7 @@ Kyverno's chart excludes `kube-system` from its admission webhooks by design (so
 | No NetworkPolicies in `kube-system`; `hostNetwork` pods (node-exporter, MetalLB speaker) can't be governed by NetworkPolicy at all | CIS 5.3.2 | Accepted; documented |
 | RBAC not reviewed beyond defaults; one cluster-admin kubeconfig on one workstation | CIS 5.1.1–5.1.13 | Review with the next phase |
 | Signature, digest and source checks only apply in namespaces labelled `security.robotoh.io/verify-images: enforce` (today: `booking-engine`) | NIST CM-14 | Opt in each app namespace as it is deployed |
-| Third-party images (charts, Postgres) are not signature-checked; Postgres digest bumps are manual | NIST SR-4 | Add a scheduled digest-update check |
+| Third-party images (charts, Postgres) are not signature-checked | NIST SR-4 | Accepted for now; they are digest-pinned (Postgres) or version-pinned (charts) |
 
 ## Verifying it yourself
 
