@@ -14,7 +14,11 @@ spec:
     helm:
       valuesObject:
         podSecurityStandard: restricted
-        validationFailureAction: Audit
+        # Phase 4 (Sept 27, 2026): Audit -> Enforce, after a pre-flight showed
+        # 0 fail / 0 error across every PolicyReport. Documented exceptions
+        # in infrastructure/kyverno-exceptions still apply.
+        # Rollback: set this back to Audit and push.
+        validationFailureAction: Enforce
         # If Kyverno is down or slow, let the request through. Pod Security
         # Admission (namespace labels, built into the API server) still
         # enforces the restricted profile everywhere except kube-system and
