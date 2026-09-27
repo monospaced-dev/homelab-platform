@@ -14,6 +14,7 @@ spec:
       expression: >-
         object.metadata.namespace == 'monitoring' &&
         has(object.metadata.labels) &&
+        'app.kubernetes.io/name' in object.metadata.labels &&
         object.metadata.labels['app.kubernetes.io/name'] == 'prometheus-node-exporter'
   properties:
     reason: "node-exporter reads node-level metrics: needs hostNetwork/hostPID and read-only hostPath mounts of /proc, /sys and /"

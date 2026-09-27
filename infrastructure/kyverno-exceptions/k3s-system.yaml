@@ -13,6 +13,7 @@ spec:
       expression: >-
         object.metadata.namespace == 'kube-system' &&
         has(object.metadata.labels) &&
+        'k8s-app' in object.metadata.labels &&
         object.metadata.labels['k8s-app'] == 'kube-dns'
   properties:
     reason: "k3s-managed CoreDNS; manifest is re-applied by k3s on every restart, so it cannot be changed through GitOps"
@@ -33,6 +34,7 @@ spec:
       expression: >-
         object.metadata.namespace == 'kube-system' &&
         has(object.metadata.labels) &&
+        'k8s-app' in object.metadata.labels &&
         object.metadata.labels['k8s-app'] == 'metrics-server'
   properties:
     reason: "k3s-managed metrics-server; missing only a seccomp profile; manifest re-applied by k3s on restart"

@@ -15,6 +15,14 @@ spec:
       valuesObject:
         podSecurityStandard: restricted
         validationFailureAction: Audit
+        # If Kyverno is down or slow, let the request through. Pod Security
+        # Admission (namespace labels, built into the API server) still
+        # enforces the restricted profile everywhere except kube-system and
+        # the documented privileged namespaces, so a Kyverno outage degrades
+        # to PSA-only rather than blocking every pod in the cluster.
+        # (The chart default is Fail; the phase 1 notes assumed Ignore, but it
+        # was never set.) The image-signature policy keeps Fail on purpose.
+        failurePolicy: Ignore
   destination:
     server: https://kubernetes.default.svc
     namespace: kyverno
