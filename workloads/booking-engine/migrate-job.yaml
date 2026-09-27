@@ -35,10 +35,23 @@ spec:
           command:
             - sh
             - -c
-            - >-
-              mkdir -p storage/framework/cache storage/framework/sessions
-              storage/framework/views storage/logs storage/app/private
-              && exec php artisan migrate --force
+            # Wait until Postgres accepts a real connection before migrating.
+            # k3s's NetworkPolicy controller needs a few seconds to add a new
+            # pod's IP to its allow-lists; until then default-deny rejects the
+            # pod's traffic ("connection refused"). The app pod rides this out
+            # through its readiness probe; a one-shot Job has to wait itself.
+            - |
+              mkdir -p storage/framework/cache storage/framework/sessions \
+                storage/framework/views storage/logs storage/app/private
+              i=0
+              until php -r 'try { new PDO("pgsql:host=".getenv("DB_HOST").";port=".getenv("DB_PORT").";dbname=".getenv("DB_DATABASE"), getenv("DB_USERNAME"), getenv("DB_PASSWORD")); } catch (Throwable $e) { exit(1); }'; do
+                i=$((i+1))
+                if [ "$i" -ge 30 ]; then echo "postgres unreachable after 60s" >&2; exit 1; fi
+                echo "waiting for postgres ($i)..."
+                sleep 2
+              done
+              echo "postgres reachable after $i retries"
+              exec php artisan migrate --force
           envFrom:
             - configMapRef:
                 name: booking-engine-env
