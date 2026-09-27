@@ -25,7 +25,10 @@ spec:
       enabled: false
   failurePolicy: Fail
   webhookConfiguration:
-    timeoutSeconds: 15
+    # The Kubernetes maximum. Each of our images costs a GHCR + Sigstore
+    # round trip, and the app pod has three container slots (init + fpm +
+    # nginx); 15s was not enough on a cold cache.
+    timeoutSeconds: 30
   matchConstraints:
     namespaceSelector:
       matchLabels:
@@ -53,17 +56,21 @@ spec:
         ctlog:
           url: https://rekor.sigstore.dev
   validations:
+    # `images` maps each container kind (containers, initContainers,
+    # ephemeralContainers) to its image list. Iterating every kind closes a
+    # gap: checking only images.containers would let an unsigned image in
+    # through an init container.
+    #
     # Tags are mutable; a digest names exactly one image. Deploy by digest.
     - expression: >-
-        images.containers
+        images.all(kind, images[kind]
           .filter(image, image.startsWith('ghcr.io/monospaced-dev/'))
-          .all(image, image.contains('@sha256:'))
+          .all(image, image.contains('@sha256:')))
       message: "Images from ghcr.io/monospaced-dev/ must be pinned by digest (image@sha256:...), not a tag"
     # Only our own images are checked; third-party images in the same
     # namespace (e.g. postgres) pass through. An empty list is vacuously true.
     - expression: >-
-        images.containers
+        images.all(kind, images[kind]
           .filter(image, image.startsWith('ghcr.io/monospaced-dev/'))
-          .map(image, verifyImageSignatures(image, [attestors.github]))
-          .all(count, count > 0)
+          .all(image, verifyImageSignatures(image, [attestors.github]) > 0))
       message: "Image from ghcr.io/monospaced-dev/ is not signed by its build-sign.yml workflow on main"
