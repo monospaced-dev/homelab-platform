@@ -1,0 +1,45 @@
+# In namespaces that opt in (security.robotoh.io/verify-images: enforce),
+# every image must (1) come from an approved source and (2) be pinned by
+# digest. verify-monospaced-images checks that OUR images are signed; this
+# closes the other half: without it, any third-party image could run there.
+#
+# Approved sources:
+#   ghcr.io/monospaced-dev/  our own images (also signature-checked)
+#   postgres  (docker.io/library/postgres, either spelling)  the database
+# Add a prefix here, with a reason, when a namespace needs another image.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: restrict-image-sources
+spec:
+  validationActions: [Deny]
+  # Fail closed, like the signature policy: these namespaces chose strictness.
+  failurePolicy: Fail
+  matchConstraints:
+    namespaceSelector:
+      matchLabels:
+        security.robotoh.io/verify-images: enforce
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        resources: [pods]
+        operations: [CREATE, UPDATE]
+  variables:
+    # Every container kind, so nothing slips in through an init container.
+    - name: images
+      expression: >-
+        (object.spec.containers
+          + (has(object.spec.initContainers) ? object.spec.initContainers : [])
+          + (has(object.spec.ephemeralContainers) ? object.spec.ephemeralContainers : []))
+        .map(c, c.image)
+    - name: allowedPrefixes
+      expression: >-
+        ['ghcr.io/monospaced-dev/', 'postgres:', 'docker.io/library/postgres:']
+  validations:
+    - expression: >-
+        variables.images.all(image,
+          variables.allowedPrefixes.exists(prefix, image.startsWith(prefix)))
+      message: "Image source not approved for this namespace (allowed: ghcr.io/monospaced-dev/*, postgres)"
+    - expression: >-
+        variables.images.all(image, image.contains('@sha256:'))
+      message: "Images in this namespace must be pinned by digest (image@sha256:...)"
