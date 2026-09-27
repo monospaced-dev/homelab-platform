@@ -1,0 +1,73 @@
+name: image-digests
+
+# Opens (or refreshes) one pull request when a pinned image digest is out of
+# date. Nothing deploys until the PR is merged; then Argo CD syncs it (the
+# migrate Job runs first, and Kyverno re-verifies every new pod's signature).
+on:
+  # 1st of the month, 12:17 UTC: three hours after booking-engine's monthly
+  # rebuild, so its fresh signed images are already in GHCR.
+  schedule:
+    - cron: "17 12 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write        # push the update branch
+  pull-requests: write   # open the PR
+
+jobs:
+  bump:
+    runs-on: ubuntu-24.04
+    env:
+      BRANCH: automation/image-digests
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # Pinned to a commit SHA, tag in the comment (same rule as every workflow).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Resolve current digests
+        id: resolve
+        run: |
+          set -euo pipefail
+          digest() { docker buildx imagetools inspect "$1" | awk '/^Digest:/{print $2}'; }
+          # postgres:17 follows 17.x patch releases; a major upgrade stays a
+          # deliberate manual change.
+          echo "postgres=$(digest postgres:17)"                                   >> "$GITHUB_OUTPUT"
+          echo "fpm=$(digest ghcr.io/monospaced-dev/booking-engine-fpm:latest)"     >> "$GITHUB_OUTPUT"
+          echo "nginx=$(digest ghcr.io/monospaced-dev/booking-engine-nginx:latest)" >> "$GITHUB_OUTPUT"
+
+      - name: Rewrite pinned digests
+        env:
+          PG: ${{ steps.resolve.outputs.postgres }}
+          FPM: ${{ steps.resolve.outputs.fpm }}
+          NGINX: ${{ steps.resolve.outputs.nginx }}
+        run: |
+          set -euo pipefail
+          for d in "$PG" "$FPM" "$NGINX"; do
+            [[ "$d" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "bad digest: '$d'" >&2; exit 1; }
+          done
+          dir=workloads/booking-engine
+          sed -E -i "s#(image: postgres:17@)sha256:[a-f0-9]{64}#\1${PG}#" "$dir/postgres.yaml"
+          sed -E -i "s#(booking-engine-fpm@)sha256:[a-f0-9]{64}#\1${FPM}#g" "$dir/app.yaml" "$dir/migrate-job.yaml"
+          sed -E -i "s#(booking-engine-nginx@)sha256:[a-f0-9]{64}#\1${NGINX}#g" "$dir/app.yaml"
+          git diff --stat
+
+      - name: Open or update the pull request
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "All digests current; nothing to do."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$BRANCH"
+          git commit -am "Bump image digests ($(date -u +%F))"
+          # One standing branch: a newer run replaces an unmerged older one.
+          git push --force origin "$BRANCH"
+          body=$(printf 'Automated monthly digest refresh.\n\n```diff\n%s\n```\n\nMerging deploys via Argo CD: the migrate Job runs first, and Kyverno verifies each new pod'"'"'s signature and digest.' "$(git diff HEAD~1 -U0 | grep -E '^[-+] ')")
+          if gh pr view "$BRANCH" --json state -q .state 2>/dev/null | grep -q OPEN; then
+            gh pr edit "$BRANCH" --body "$body"
+          else
+            gh pr create --head "$BRANCH" --base main \
+              --title "Bump image digests ($(date -u +%Y-%m))" --body "$body"
+          fi
