@@ -58,3 +58,28 @@ spec:
   ingress:
     - ports:
         - {protocol: TCP, port: https}
+---
+# Phase 3: the admission controller verifies image signatures at admission.
+# It needs HTTPS to GHCR (signature bundles) and Sigstore (Rekor log, TUF
+# trust root). NetworkPolicy can't match hostnames, so: public internet on
+# 443 only, private ranges excluded, admission controller only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: admission-egress-https
+  namespace: kyverno
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: admission-controller
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - {protocol: TCP, port: 443}
