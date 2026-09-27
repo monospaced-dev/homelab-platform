@@ -15,6 +15,14 @@ metadata:
   name: verify-monospaced-images
 spec:
   validationActions: [Deny]
+  # Enforce at admission only. Background re-scans run in the reports
+  # controller, which has no internet egress (only the admission controller
+  # does), so they failed with "connection refused" to ghcr.io and showed up
+  # as PolicyViolation events on running pods. A pod's image can't change
+  # after admission, so re-checking it in the background adds nothing.
+  evaluation:
+    background:
+      enabled: false
   failurePolicy: Fail
   webhookConfiguration:
     timeoutSeconds: 15
