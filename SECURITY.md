@@ -10,7 +10,7 @@ Each layer assumes the one above it can fail.
 
 | Layer | What it stops | Where |
 | --- | --- | --- |
-| Git + Argo CD | Unreviewed or drifted config; manual changes are reverted (`selfHeal`) | `apps/`, `infrastructure/`, `workloads/` |
+| Git + Argo CD | Unreviewed or drifted config; manual changes are reverted (`selfHeal`) | `apps/`, `infrastructure/`, `workloads/`; node-level k3s settings in `bootstrap/k3s-server/` |
 | CI supply chain | Vulnerable or unsigned images before they are published | [booking-engine `build-sign.yml`](https://github.com/monospaced-dev/booking-engine/blob/main/.github/workflows/build-sign.yml) |
 | Admission: Pod Security Admission | Privileged / host-access pods, per namespace; built into the API server, always on | namespace labels |
 | Admission: Kyverno | Fine-grained Pod Security (restricted, with documented exceptions); image signatures, digests and sources | `apps/kyverno-*.yaml`, `infrastructure/kyverno-*` |
@@ -39,6 +39,8 @@ Each layer assumes the one above it can fail.
 | 16 | Secrets never in Git in the clear | Sealed Secrets: only ciphertext is committed; controller key backed up off-cluster | `*-sealed.yaml` | 5.4.2 (partial) | SC-12, SC-28 | Met |
 | 17 | Backups and tested restore | Longhorn: 2 replicas, snapshots every 2 days, nightly backups to a NAS (RAID 5); restore from backup and from `pg_dump` both exercised | [`infrastructure/longhorn/recurring-jobs.yaml`](infrastructure/longhorn/recurring-jobs.yaml) | — | CP-9, CP-10 | Met |
 | 18 | Continuous monitoring | Prometheus + Alertmanager → Discord; Longhorn alert rules; Kyverno PolicyReports | [`infrastructure/monitoring/`](infrastructure/monitoring) | — | CA-7, SI-4 | Met |
+| 19 | Secrets encrypted at rest | k3s `secrets-encryption` (AES-CBC); key in `server/cred/encryption-config.json` on the node, backed up off-cluster, never in Git | `sudo k3s secrets-encrypt status` → Enabled, `reencrypt_finished`; raw `state.db` rows start with `k8s:enc:aescbc:v1:` | 1.2.27, 1.2.28 | SC-28, SC-28(1), SC-12 | Met (2026-09-27) |
+| 20 | API audit log | Audit policy: every change logged with its request body, credential objects metadata-only, controller reads and health checks dropped; 30 days, 10 × 100 MB | [`bootstrap/k3s-server/`](bootstrap/k3s-server) | 1.2.16–1.2.19 | AU-2, AU-3, AU-9, AU-11, AU-12 | Met (2026-09-27) |
 
 ## Documented exceptions
 
@@ -57,8 +59,6 @@ Kyverno's chart excludes `kube-system` from its admission webhooks by design (so
 
 | Gap | Reference | Plan |
 | --- | --- | --- |
-| Secrets are not encrypted at rest in the k3s datastore (`--secrets-encryption` was not set at install) | CIS 1.2.27, 1.2.28; NIST SC-28 | Enable with `k3s secrets-encrypt`; verify with `k3s secrets-encrypt status` |
-| API server audit logging not configured | CIS 1.2.16–1.2.19; NIST AU-2, AU-12 | Add an audit policy and log path to the k3s server config |
 | booking-engine receives secrets as environment variables | CIS 5.4.1 | Mount as files once the app reads them from disk |
 | No NetworkPolicies in `kube-system`; `hostNetwork` pods (node-exporter, MetalLB speaker) can't be governed by NetworkPolicy at all | CIS 5.3.2 | Accepted; documented |
 | RBAC not reviewed beyond defaults; one cluster-admin kubeconfig on one workstation | CIS 5.1.1–5.1.13 | Review with the next phase |

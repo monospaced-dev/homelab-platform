@@ -1,0 +1,54 @@
+# /var/lib/rancher/k3s/server/audit.yaml on k3s-server
+#
+# Records who changed what in the cluster, without recording secret values
+# and without drowning in controller chatter. Rules are evaluated top to
+# bottom; the first match decides the level:
+#   None      don't log
+#   Metadata  who, what, when, result (no bodies)
+#   Request   metadata + the request body
+apiVersion: audit.k8s.io/v1
+kind: Policy
+# Log once per request, when the response is sent, not also on arrival.
+omitStages:
+  - RequestReceived
+rules:
+  # Health checks and metrics scrapes: constant, never interesting.
+  - level: None
+    nonResourceURLs:
+      - /healthz*
+      - /livez*
+      - /readyz*
+      - /version
+      - /metrics
+  # Leader-election leases and Events: written every few seconds by controllers.
+  - level: None
+    resources:
+      - group: coordination.k8s.io
+        resources: [leases]
+      - group: ""
+        resources: [events]
+      - group: events.k8s.io
+        resources: [events]
+  # Reads by in-cluster components (service accounts, kubelets). Controllers
+  # get/list/watch all day; logging it adds volume, not accountability.
+  # Human reads (the admin kubeconfig) still fall through to Metadata below.
+  - level: None
+    verbs: [get, list, watch]
+    userGroups:
+      - system:serviceaccounts
+      - system:nodes
+  # Anything touching credentials: metadata only, never bodies, so a secret's
+  # value can't end up in the log (this must come before the Request rule).
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: [secrets, configmaps, serviceaccounts/token]
+      - group: authentication.k8s.io
+        resources: [tokenreviews]
+      - group: bitnami.com
+        resources: [sealedsecrets]
+  # Every change: include the request body, so the log shows what was changed.
+  - level: Request
+    verbs: [create, update, patch, delete, deletecollection]
+  # Everything else (mostly human reads): metadata.
+  - level: Metadata

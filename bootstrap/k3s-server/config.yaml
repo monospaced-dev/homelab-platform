@@ -1,0 +1,21 @@
+# /etc/rancher/k3s/config.yaml on k3s-server (10.20.0.3)
+#
+# Server-level settings that Argo CD can't manage (they configure k3s itself).
+# This copy is the source of truth; install it by hand on a rebuild:
+#   scp bootstrap/k3s-server/config.yaml k3s-server:/tmp/ && \
+#   ssh -t k3s-server 'sudo install -m 600 /tmp/config.yaml /etc/rancher/k3s/config.yaml'
+# k3s merges this file with the flags in its systemd unit (--disable ...,
+# --tls-san, --node-name), so those stay where the install put them.
+
+# Encrypt Secrets at rest in the datastore (CIS 1.2.27 / 1.2.28).
+# The key lives in /var/lib/rancher/k3s/server/cred/encryption-config.json,
+# never in Git; it is backed up to the NAS with the rest of server/cred.
+secrets-encryption: true
+
+# API server audit log (CIS 1.2.16-1.2.19). Policy: audit-policy.yaml.
+kube-apiserver-arg:
+  - audit-policy-file=/var/lib/rancher/k3s/server/audit.yaml
+  - audit-log-path=/var/lib/rancher/k3s/server/logs/audit.log
+  - audit-log-maxage=30
+  - audit-log-maxbackup=10
+  - audit-log-maxsize=100
