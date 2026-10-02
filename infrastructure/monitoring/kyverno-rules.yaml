@@ -1,0 +1,24 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kyverno
+  namespace: monitoring
+spec:
+  groups:
+    - name: kyverno
+      rules:
+        - alert: KyvernoAdmissionDown
+          expr: kube_deployment_status_replicas_available{namespace="kyverno", deployment="kyverno-admission-controller"} < 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Kyverno admission controller is down"
+            description: "No available replicas for 5 minutes. With failurePolicy Ignore, pod admission is falling back to PSA only; privileged namespaces are unchecked by Kyverno."
+        - alert: KyvernoWebhookFailOpen
+          expr: sum by (name) (increase(apiserver_admission_webhook_fail_open_count{name=~".*kyverno.*"}[10m])) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "Requests admitted without Kyverno evaluation"
+            description: "The API server let {{ $value | humanize }} request(s) through webhook {{ $labels.name }} without a Kyverno decision (failurePolicy Ignore). Check the background scan's PolicyReports for anything that slipped in."
