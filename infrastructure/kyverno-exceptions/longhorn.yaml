@@ -16,7 +16,9 @@ spec:
     - {kind: ValidatingPolicy, name: restrict-volume-types}
   matchConditions:
     - name: longhorn-system-namespace
-      expression: "object.metadata.namespace == 'longhorn-system'"
+      expression: >-
+        (has(object.metadata.namespace) && object.metadata.namespace == 'longhorn-system') ||
+        (has(request.namespace) && request.namespace == 'longhorn-system')
   properties:
     reason: "Longhorn is block storage: it must run privileged with host paths and SYS_ADMIN to manage disks, iSCSI and CSI mounts on each node"
     why-namespace-scope: "most Longhorn workloads (engine-image, CSI sidecars, instance-managers, recurring-job CronJobs) are generated at runtime by longhorn-manager, not by the Helm chart, with hashed names; they cannot be hardened via values or matched individually"

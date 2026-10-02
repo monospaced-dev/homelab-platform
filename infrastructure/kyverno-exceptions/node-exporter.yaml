@@ -12,10 +12,10 @@ spec:
   matchConditions:
     - name: node-exporter-in-monitoring
       expression: >-
-        object.metadata.namespace == 'monitoring' &&
+        ((has(object.metadata.namespace) && object.metadata.namespace == 'monitoring') ||
+         (has(request.namespace) && request.namespace == 'monitoring')) &&
         has(object.metadata.labels) &&
-        'app.kubernetes.io/name' in object.metadata.labels &&
-        object.metadata.labels['app.kubernetes.io/name'] == 'prometheus-node-exporter'
+        object.metadata.labels['app.kubernetes.io/name'] == 'prometheus-node-exporter'  
   properties:
     reason: "node-exporter reads node-level metrics: needs hostNetwork/hostPID and read-only hostPath mounts of /proc, /sys and /"
     compensating-controls: "mounts are read-only; runs as nobody (65534); privilege escalation disabled; seccomp RuntimeDefault; all capabilities dropped"

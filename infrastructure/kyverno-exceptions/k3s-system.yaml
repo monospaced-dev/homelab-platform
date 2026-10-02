@@ -11,9 +11,9 @@ spec:
   matchConditions:
     - name: coredns-in-kube-system
       expression: >-
-        object.metadata.namespace == 'kube-system' &&
+        ((has(object.metadata.namespace) && object.metadata.namespace == 'kube-system') ||
+         (has(request.namespace) && request.namespace == 'kube-system')) &&
         has(object.metadata.labels) &&
-        'k8s-app' in object.metadata.labels &&
         object.metadata.labels['k8s-app'] == 'kube-dns'
   properties:
     reason: "k3s-managed CoreDNS; manifest is re-applied by k3s on every restart, so it cannot be changed through GitOps"
@@ -32,10 +32,10 @@ spec:
   matchConditions:
     - name: metrics-server-in-kube-system
       expression: >-
-        object.metadata.namespace == 'kube-system' &&
+        ((has(object.metadata.namespace) && object.metadata.namespace == 'kube-system') ||
+         (has(request.namespace) && request.namespace == 'kube-system')) &&
         has(object.metadata.labels) &&
-        'k8s-app' in object.metadata.labels &&
-        object.metadata.labels['k8s-app'] == 'metrics-server'
+        object.metadata.labels['k8s-app'] == 'kube-dns'
   properties:
     reason: "k3s-managed metrics-server; missing only a seccomp profile; manifest re-applied by k3s on restart"
     compensating-controls: "kube-system writable only by cluster admins; version tracked with k3s upgrades"
