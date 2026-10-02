@@ -22,3 +22,17 @@ spec:
           annotations:
             summary: "Requests admitted without Kyverno evaluation"
             description: "The API server let {{ $value | humanize }} request(s) through webhook {{ $labels.name }} without a Kyverno decision (failurePolicy Ignore). Check the background scan's PolicyReports for anything that slipped in."
+        - alert: LonghornBackupJobStale
+          expr: time() - kube_cronjob_status_last_successful_time{namespace="longhorn-system", cronjob="daily-backup"} > 26 * 3600
+          labels:
+            severity: critical
+          annotations:
+            summary: "Longhorn daily backup has not succeeded in over 26 hours"
+            description: "The last successful daily-backup Job finished {{ $value | humanizeDuration }} ago. Check CronJob events for FailedCreate."
+        - alert: KyvernoDeniedRequests
+          expr: sum by (name, operation) (increase(apiserver_admission_webhook_rejection_count{name=~".*kyverno.*"}[15m])) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "Kyverno is rejecting requests"
+            description: "{{ $value | humanize }} {{ $labels.operation }} request(s) rejected by {{ $labels.name }} in 15 minutes. Expected for real violations; unexpected denials of platform components point to a missing or non-matching exception."
