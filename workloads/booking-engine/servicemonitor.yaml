@@ -1,0 +1,20 @@
+# Prometheus scrapes the app's /metrics using the token from the secret.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: booking-engine
+  namespace: booking-engine
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: booking-engine
+      app.kubernetes.io/component: app
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      authorization:
+        type: Bearer
+        credentials:
+          name: booking-engine-secrets
+          key: METRICS_TOKEN

@@ -68,3 +68,24 @@ spec:
               - {key: app.kubernetes.io/component, operator: In, values: [app, migrate]}
       ports:
         - {protocol: TCP, port: 5432}
+---
+# Prometheus may scrape the app on 8080. Nothing else may reach it yet.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: app-from-prometheus
+  namespace: booking-engine
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: booking-engine
+      app.kubernetes.io/component: app
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: monitoring}
+          podSelector:
+            matchLabels: {app.kubernetes.io/name: prometheus}
+      ports:
+        - {protocol: TCP, port: 8080}
