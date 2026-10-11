@@ -31,7 +31,7 @@ spec:
       containers:
         - name: migrate
           # Same fpm image as the app, by digest (Kyverno requires it).
-          image: ghcr.io/monospaced-dev/booking-engine-fpm@sha256:9593c45499c6cee80b6813a3f221580e6b23632a840a1b98b4c317bfc0ee8b96
+          image: ghcr.io/monospaced-dev/booking-engine-fpm@sha256:696143d9b6b12e0ac1c998a24e3a32ef69ebe75ea74c69b873149432427e8c36
           command:
             - sh
             - -c
