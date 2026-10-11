@@ -29,7 +29,7 @@ spec:
         # storage/ is an emptyDir (the root filesystem is read-only), so the
         # folders Laravel expects inside it are created fresh on each start.
         - name: prepare-storage
-          image: ghcr.io/monospaced-dev/booking-engine-fpm@sha256:c0707e0c2ccaba92be511cf32b09a0e6e23493c0fd5fe5b5b4132529a8e5a5af
+          image: ghcr.io/monospaced-dev/booking-engine-fpm@sha256:815a15f624903718576a2de0bb9ac62d68ae5461f41df9f4888fdc2e514c4bad
           command:
             - mkdir
             - -p
@@ -56,7 +56,7 @@ spec:
               memory: 32Mi
       containers:
         - name: fpm
-          image: ghcr.io/monospaced-dev/booking-engine-fpm@sha256:c0707e0c2ccaba92be511cf32b09a0e6e23493c0fd5fe5b5b4132529a8e5a5af
+          image: ghcr.io/monospaced-dev/booking-engine-fpm@sha256:815a15f624903718576a2de0bb9ac62d68ae5461f41df9f4888fdc2e514c4bad
           envFrom:
             - configMapRef:
                 name: booking-engine-env
@@ -84,7 +84,7 @@ spec:
             limits:
               memory: 256Mi
         - name: nginx
-          image: ghcr.io/monospaced-dev/booking-engine-nginx@sha256:b31844ef68d16daa34460ec8d39400aeca815d64ae8c54f0ae1ecfa788abb85b
+          image: ghcr.io/monospaced-dev/booking-engine-nginx@sha256:6719fb86be33c3d80c8dff1aefb665c92868cf406dc76c128f4a16a33722002e
           ports:
             - name: http
               containerPort: 8080
