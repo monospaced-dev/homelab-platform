@@ -1,0 +1,29 @@
+# Non-secret settings, shared by the app and the migrate Job via envFrom.
+# Secrets (APP_KEY, DB_PASSWORD) live in the sealed secret.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: family-budget-env
+  namespace: family-budget
+data:
+  APP_NAME: Family Budget
+  APP_ENV: production
+  APP_DEBUG: "false"
+  # Public address, through the Cloudflare tunnel. Used for generated links and redirects.
+  APP_URL: https://budget.robotoh.io
+  # Logs go to the container's stderr, so kubectl logs sees them and nothing is written to disk.
+  LOG_CHANNEL: stderr
+  LOG_LEVEL: info
+  DB_CONNECTION: pgsql
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_DATABASE: family_budget
+  DB_USERNAME: family_budget
+  # Sessions in Postgres, so a pod restart doesn't log anyone out. 43200 minutes = 30 days.
+  SESSION_DRIVER: database
+  SESSION_LIFETIME: "43200"
+  # The browser only ever sees https (TLS ends at Traefik), so the cookie is Secure.
+  SESSION_SECURE_COOKIE: "true"
+  CACHE_STORE: database
+  # No worker pod: nothing here needs a queue.
+  QUEUE_CONNECTION: sync

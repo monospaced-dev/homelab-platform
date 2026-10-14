@@ -1,0 +1,122 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: family-budget-postgres-data
+  namespace: family-budget
+  annotations:
+    # Never let Argo delete the data volume, even if this file is removed.
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: family-budget-postgres
+  namespace: family-budget
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  # Longhorn volumes are RWO: a rolling update would start a second pod before the first releases
+  # the volume and hang. Recreate avoids that.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: family-budget
+      app.kubernetes.io/component: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: family-budget
+        app.kubernetes.io/component: postgres
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        # The official image can run straight as the postgres user (999) instead of starting as
+        # root and dropping privileges.
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          # Pinned by digest: required in namespaces that opt in to image verification. The tag stays
+          # for readability; the digest is what's pulled. Bump both together (image-digests workflow).
+          image: postgres:17@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3
+          env:
+            - name: POSTGRES_DB
+              value: family_budget
+            - name: POSTGRES_USER
+              value: family_budget
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: family-budget-secrets
+                  key: DB_PASSWORD
+            # A subdirectory, because the volume root holds lost+found and initdb refuses a
+            # non-empty directory.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - name: postgres
+              containerPort: 5432
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: run
+              mountPath: /var/run/postgresql
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "family_budget", "-d", "family_budget"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "family_budget", "-d", "family_budget"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: family-budget-postgres-data
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: family-budget
+spec:
+  selector:
+    app.kubernetes.io/name: family-budget
+    app.kubernetes.io/component: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres

@@ -1,8 +1,12 @@
 name: image-digests
 
 # Opens (or refreshes) one pull request when a pinned image digest is out of
-# date. Nothing deploys until the PR is merged; then Argo CD syncs it (the
-# migrate Job runs first, and Kyverno re-verifies every new pod's signature).
+# date: booking-engine, family-budget and the shared Postgres pin. Nothing
+# deploys until the PR is merged; then Argo CD syncs it (the migrate Job runs
+# first, and Kyverno re-verifies every new pod's signature).
+#
+# After a family-budget release, run this by hand (Actions -> image-digests ->
+# Run workflow) to get the new build into a PR without waiting for the 1st.
 on:
   # 1st of the month, 12:17 UTC: three hours after booking-engine's monthly
   # rebuild, so its fresh signed images are already in GHCR.
@@ -34,21 +38,30 @@ jobs:
           echo "postgres=$(digest postgres:17)"                                   >> "$GITHUB_OUTPUT"
           echo "fpm=$(digest ghcr.io/monospaced-dev/booking-engine-fpm:latest)"     >> "$GITHUB_OUTPUT"
           echo "nginx=$(digest ghcr.io/monospaced-dev/booking-engine-nginx:latest)" >> "$GITHUB_OUTPUT"
+          echo "fb_fpm=$(digest ghcr.io/monospaced-dev/family-budget-fpm:latest)"     >> "$GITHUB_OUTPUT"
+          echo "fb_nginx=$(digest ghcr.io/monospaced-dev/family-budget-nginx:latest)" >> "$GITHUB_OUTPUT"
 
       - name: Rewrite pinned digests
         env:
           PG: ${{ steps.resolve.outputs.postgres }}
           FPM: ${{ steps.resolve.outputs.fpm }}
           NGINX: ${{ steps.resolve.outputs.nginx }}
+          FB_FPM: ${{ steps.resolve.outputs.fb_fpm }}
+          FB_NGINX: ${{ steps.resolve.outputs.fb_nginx }}
         run: |
           set -euo pipefail
-          for d in "$PG" "$FPM" "$NGINX"; do
+          for d in "$PG" "$FPM" "$NGINX" "$FB_FPM" "$FB_NGINX"; do
             [[ "$d" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "bad digest: '$d'" >&2; exit 1; }
           done
           dir=workloads/booking-engine
           sed -E -i "s#(image: postgres:17@)sha256:[a-f0-9]{64}#\1${PG}#" "$dir/postgres.yaml"
           sed -E -i "s#(booking-engine-fpm@)sha256:[a-f0-9]{64}#\1${FPM}#g" "$dir/app.yaml" "$dir/migrate-job.yaml"
           sed -E -i "s#(booking-engine-nginx@)sha256:[a-f0-9]{64}#\1${NGINX}#g" "$dir/app.yaml"
+          # family-budget: same Postgres pin (database and backup job), and its own two images.
+          fb=workloads/family-budget
+          sed -E -i "s#(image: postgres:17@)sha256:[a-f0-9]{64}#\1${PG}#" "$fb/postgres.yaml" "$fb/backup.yaml"
+          sed -E -i "s#(family-budget-fpm@)sha256:[a-f0-9]{64}#\1${FB_FPM}#g" "$fb/app.yaml" "$fb/migrate-job.yaml"
+          sed -E -i "s#(family-budget-nginx@)sha256:[a-f0-9]{64}#\1${FB_NGINX}#g" "$fb/app.yaml"
           git diff --stat
 
       - name: Open or update the pull request

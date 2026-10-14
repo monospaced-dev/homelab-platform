@@ -1,0 +1,141 @@
+# Nightly logical backup of the database, off the cluster, on the Synology.
+#
+# Longhorn already backs the volume up to the same NAS (a crash-consistent copy of the disk). This is
+# a second, different safety net: pg_dump produces a portable file that restores into any Postgres,
+# and each dump is test-read before it counts as done.
+#
+# The Synology folder must exist and be exported to the nodes before this can run:
+#   /volume1/longhorn-backup/family-budget-pgdump  (see docs in the pull request)
+# Only that subfolder is mounted, so this pod can't see or touch Longhorn's own backups.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: family-budget-backups
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  capacity:
+    storage: 10Gi          # nominal: NFS doesn't enforce it
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain   # deleting the claim must never delete the backups
+  storageClassName: ""
+  # Pre-bound to the claim below, so nothing else can take this volume.
+  claimRef:
+    namespace: family-budget
+    name: family-budget-backups
+  nfs:
+    server: 10.20.0.7
+    path: /volume1/longhorn-backup/family-budget-pgdump
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: family-budget-backups
+  namespace: family-budget
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: family-budget-backups
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: family-budget
+spec:
+  # 03:00 Chicago time, every night.
+  schedule: "0 3 * * *"
+  timeZone: America/Chicago
+  # A slow night must never overlap the next run.
+  concurrencyPolicy: Forbid
+  # If the cluster was down at 03:00, still run within the hour; after that, wait for tomorrow.
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 900
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: family-budget
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: pg-dump
+              # The same Postgres image as the database, by digest: it carries pg_dump and pg_restore,
+              # and it is on the approved-images list. Bumped together with postgres.yaml.
+              image: postgres:17@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3
+              command:
+                - sh
+                - -c
+                - |
+                  set -eu
+                  dir=/backup
+                  mkdir -p "$dir/daily" "$dir/weekly"
+
+                  stamp=$(date -u +%Y-%m-%d_%H%M)
+                  out="$dir/daily/family_budget_$stamp.dump"
+
+                  # Write to a temporary name, prove the file can be read back, then give it its real name.
+                  # A half-written or unreadable dump therefore never looks like a good backup.
+                  pg_dump --format=custom --no-owner --file="$out.partial"
+                  pg_restore --list "$out.partial" > /dev/null
+                  mv "$out.partial" "$out"
+                  echo "wrote $out ($(du -h "$out" | cut -f1))"
+
+                  # Keep one a week (Sundays, UTC) for eight weeks, and every night for fourteen days.
+                  if [ "$(date -u +%u)" = 7 ]; then cp "$out" "$dir/weekly/"; fi
+                  find "$dir/daily"  -name '*.dump' -mtime +14 -delete
+                  find "$dir/weekly" -name '*.dump' -mtime +56 -delete
+                  find "$dir" -name '*.partial' -mtime +1 -delete
+                  echo "backups on disk: $(ls "$dir/daily" | wc -l) daily, $(ls "$dir/weekly" | wc -l) weekly"
+              env:
+                - name: PGHOST
+                  value: postgres
+                - name: PGUSER
+                  value: family_budget
+                - name: PGDATABASE
+                  value: family_budget
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: family-budget-secrets
+                      key: DB_PASSWORD
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+                - name: tmp
+                  mountPath: /tmp
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+          volumes:
+            - name: backup
+              persistentVolumeClaim:
+                claimName: family-budget-backups
+            - name: tmp
+              emptyDir: {}
