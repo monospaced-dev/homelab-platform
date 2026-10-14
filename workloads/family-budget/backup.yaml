@@ -86,11 +86,26 @@ spec:
                 - -c
                 - |
                   set -eu
+
+                  # Wait until Postgres accepts a real connection before dumping. k3s's NetworkPolicy
+                  # controller needs a few seconds to add a new pod's IP to its allow-lists; until then
+                  # default-deny rejects the pod's traffic ("connection refused"). Without this wait the
+                  # first attempt and its immediate retry can both land inside that window and fail.
+                  i=0
+                  until pg_isready -q -h postgres -U family_budget -d family_budget; do
+                    i=$((i+1))
+                    if [ "$i" -ge 30 ]; then echo "postgres unreachable after 60s" >&2; exit 1; fi
+                    echo "waiting for postgres ($i)..."
+                    sleep 2
+                  done
+
                   dir=/backup
                   mkdir -p "$dir/daily" "$dir/weekly"
 
                   stamp=$(date -u +%Y-%m-%d_%H%M)
                   out="$dir/daily/family_budget_$stamp.dump"
+                  # A failed run must not leave a half-written file behind.
+                  trap 'rm -f "$out.partial"' EXIT
 
                   # Write to a temporary name, prove the file can be read back, then give it its real name.
                   # A half-written or unreadable dump therefore never looks like a good backup.
@@ -104,7 +119,7 @@ spec:
                   find "$dir/daily"  -name '*.dump' -mtime +14 -delete
                   find "$dir/weekly" -name '*.dump' -mtime +56 -delete
                   find "$dir" -name '*.partial' -mtime +1 -delete
-                  echo "backups on disk: $(ls "$dir/daily" | wc -l) daily, $(ls "$dir/weekly" | wc -l) weekly"
+                  echo "backups on disk: $(ls "$dir"/daily/*.dump | wc -l) daily, $(ls "$dir"/weekly/*.dump 2>/dev/null | wc -l) weekly"
               env:
                 - name: PGHOST
                   value: postgres
