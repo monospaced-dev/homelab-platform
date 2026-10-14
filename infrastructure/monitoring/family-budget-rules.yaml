@@ -1,0 +1,44 @@
+# Alerts for the family budget app. They go to Discord through Alertmanager like the others.
+# The backup alert fires on the OUTCOME (no good backup lately), not on the job erroring, because a
+# job that never runs produces no error.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: family-budget
+  namespace: monitoring
+spec:
+  groups:
+    - name: family-budget
+      rules:
+        - alert: FamilyBudgetBackupStale
+          expr: time() - max(kube_cronjob_status_last_successful_time{namespace="family-budget", cronjob="postgres-backup"}) > 26 * 3600
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "No successful family budget database backup in over 26 hours"
+            description: "The nightly pg_dump to the Synology hasn't succeeded since {{ $value | humanizeDuration }} ago. Check the postgres-backup CronJob and the NFS folder."
+        - alert: FamilyBudgetBackupFailed
+          expr: kube_job_status_failed{namespace="family-budget", job_name=~"postgres-backup.*"} > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "A family budget backup job failed"
+            description: "Job {{ $labels.job_name }} failed. Look at its logs: kubectl logs -n family-budget job/{{ $labels.job_name }}"
+        - alert: FamilyBudgetDown
+          expr: kube_deployment_status_replicas_available{namespace="family-budget", deployment="family-budget"} < 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "The family budget app has no healthy pod"
+            description: "family-budget has had no available replica for 5 minutes. Both phones will show the offline page."
+        - alert: FamilyBudgetDatabaseDown
+          expr: kube_deployment_status_replicas_available{namespace="family-budget", deployment="family-budget-postgres"} < 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "The family budget database is not running"
+            description: "family-budget-postgres has had no available replica for 5 minutes."

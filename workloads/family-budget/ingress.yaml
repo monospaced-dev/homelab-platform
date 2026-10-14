@@ -1,0 +1,23 @@
+# How budget.robotoh.io reaches the app. Same shape as Grafana's:
+#   phone -> Cloudflare -> tunnel -> Traefik (https, wildcard certificate) -> this Service.
+# No tls: section: Traefik's websecure entry point already serves the *.robotoh.io certificate.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: family-budget
+  namespace: family-budget
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: budget.robotoh.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: family-budget
+                port:
+                  number: 8080

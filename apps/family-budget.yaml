@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: family-budget
+  namespace: argocd
+  annotations:
+    # After the platform (waves 0-12) and booking-engine (20).
+    argocd.argoproj.io/sync-wave: "21"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/monospaced-dev/homelab-platform.git
+    targetRevision: main
+    path: workloads/family-budget
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: family-budget
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: restricted
+        pod-security.kubernetes.io/enforce-version: latest
+        pod-security.kubernetes.io/warn: restricted
+        pod-security.kubernetes.io/audit: restricted
+        # Opt in to Kyverno signature + digest + approved-source enforcement.
+        security.robotoh.io/verify-images: enforce
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m
