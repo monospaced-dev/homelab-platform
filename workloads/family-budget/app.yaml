@@ -29,7 +29,7 @@ spec:
         # storage/ is an emptyDir (the root filesystem is read-only), so the folders Laravel expects
         # inside it are created fresh on each start.
         - name: prepare-storage
-          image: ghcr.io/monospaced-dev/family-budget-fpm@sha256:88f43cc78a64d0ca4842a364dc4efe4bdd9127e2f17eb2048dc8690cc0053d7c
+          image: ghcr.io/monospaced-dev/family-budget-fpm@sha256:2b4146d878cd822e23863237ae13a198f9a78dbf5654a750201b658090e61fa2
           command:
             - mkdir
             - -p
@@ -56,7 +56,7 @@ spec:
               memory: 32Mi
       containers:
         - name: fpm
-          image: ghcr.io/monospaced-dev/family-budget-fpm@sha256:88f43cc78a64d0ca4842a364dc4efe4bdd9127e2f17eb2048dc8690cc0053d7c
+          image: ghcr.io/monospaced-dev/family-budget-fpm@sha256:2b4146d878cd822e23863237ae13a198f9a78dbf5654a750201b658090e61fa2
           envFrom:
             - configMapRef:
                 name: family-budget-env
@@ -84,7 +84,7 @@ spec:
             limits:
               memory: 256Mi
         - name: nginx
-          image: ghcr.io/monospaced-dev/family-budget-nginx@sha256:6638d9ff50966152d57a2e6ebae77f30a88dc5862f36fb27849dcb432fe09428
+          image: ghcr.io/monospaced-dev/family-budget-nginx@sha256:18cebbacfdd36254b5af5a639dafbcbe120de73373fab28ff884f58c9c1a3d13
           ports:
             - name: http
               containerPort: 8080
