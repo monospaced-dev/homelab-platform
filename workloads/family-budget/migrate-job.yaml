@@ -29,7 +29,7 @@ spec:
       containers:
         - name: migrate
           # Same fpm image as the app, by digest (Kyverno requires it).
-          image: ghcr.io/monospaced-dev/family-budget-fpm@sha256:88f43cc78a64d0ca4842a364dc4efe4bdd9127e2f17eb2048dc8690cc0053d7c
+          image: ghcr.io/monospaced-dev/family-budget-fpm@sha256:2b4146d878cd822e23863237ae13a198f9a78dbf5654a750201b658090e61fa2
           command:
             - sh
             - -c
